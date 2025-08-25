@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: invoice-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: invoice_financing
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - invoice-network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: invoice-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - invoice-network
+
+  # Go Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: invoice-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://admin:password123@postgres:5432/invoice_financing?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      ETHEREUM_RPC: http://localhost:8545
+      CONTRACT_ADDRESS: "0x0000000000000000000000000000000000000000"
+      AI_MODEL_ENDPOINT: http://ai-service:5000/api/ml
+      PORT: 8080
+      ENVIRONMENT: development
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - invoice-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: invoice-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8080/api/v1
+      REACT_APP_WEB3_NETWORK: http://localhost:8545
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - invoice-network
+
+  # Local Ethereum node (Hardhat)
+  hardhat:
+    build:
+      context: ./blockchain
+      dockerfile: Dockerfile
+    container_name: invoice-blockchain
+    restart: unless-stopped
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./blockchain:/app
+    networks:
+      - invoice-network
+    command: npx hardhat node --hostname 0.0.0.0
+
+  # AI/ML Service (Python FastAPI)
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: invoice-ai-service
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/invoice_financing
+    depends_on:
+      - postgres
+    networks:
+      - invoice-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  invoice-network:
+    driver: bridge
