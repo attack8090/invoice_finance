@@ -10,11 +10,13 @@ services:
       POSTGRES_DB: invoice_financing
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password123
+      POSTGRES_MULTIPLE_DATABASES: invoice_financing,blockchain_ledger,payment_service,notification_service,bank_integration,integration_external_data
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/migrations:/docker-entrypoint-initdb.d
+      - ./scripts/create-multiple-databases.sh:/docker-entrypoint-initdb.d/create-multiple-databases.sh
     networks:
       - invoice-network
 
@@ -100,6 +102,205 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/invoice_financing
+    depends_on:
+      - postgres
+    networks:
+      - invoice-network
+
+  # Blockchain Ledger Service (Go) - Epic 4 Compliance
+  blockchain-ledger-service:
+    build:
+      context: ./blockchain-ledger-service
+      dockerfile: Dockerfile
+    container_name: invoice-blockchain-ledger
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      DATABASE_URL: postgres://admin:password123@postgres:5432/blockchain_ledger?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      HYPERLEDGER_FABRIC_NETWORK: development
+      EPIC_4_ENABLED: "true"
+      ENVIRONMENT: development
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - invoice-network
+
+  # Payment Service (Python FastAPI) - Epic 5 Compliance
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: invoice-payment-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/payment_service
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      EPIC_5_ENABLED: "true"
+      BANK_API_BASE_URL: http://bank-integration-service:8087
+      BLOCKCHAIN_SERVICE_URL: http://blockchain-ledger-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8086
+    depends_on:
+      - postgres
+      - redis
+      - bank-integration-service
+      - blockchain-ledger-service
+    networks:
+      - invoice-network
+
+  # Notification Service (Python FastAPI)
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: invoice-notification-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/notification_service
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: your-email@gmail.com
+      SMTP_PASSWORD: your-app-password
+      SMS_PROVIDER: twilio
+      TWILIO_ACCOUNT_SID: your-twilio-sid
+      TWILIO_AUTH_TOKEN: your-twilio-token
+      PUSH_NOTIFICATION_KEY: your-fcm-key
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - invoice-network
+
+  # Bank Integration Service (Go) - Epic 4 Compliance
+  bank-integration-service:
+    build:
+      context: ./bank-integration-service
+      dockerfile: Dockerfile
+    container_name: invoice-bank-integration
+    restart: unless-stopped
+    ports:
+      - "8087:8087"
+    environment:
+      DATABASE_URL: postgres://admin:password123@postgres:5432/bank_integration?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      EPIC4_ENABLED: "true"
+      FUNDING_MATCHING_ENABLED: "true"
+      REAL_TIME_PROCESSING: "true"
+      # Bank API configurations would be set via environment or secrets
+      ENVIRONMENT: development
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - invoice-network
+
+  # Integration External Data Service (Python FastAPI)
+  integration-external-data-service:
+    build:
+      context: ./integration-external-data-service
+      dockerfile: Dockerfile
+    container_name: invoice-integration-data
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/integration_external_data
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - invoice-network
+
+  # Additional services from existing codebase
+  user-management-service:
+    build:
+      context: ./user-management-service
+      dockerfile: Dockerfile
+    container_name: invoice-user-management
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: postgres://admin:password123@postgres:5432/invoice_financing?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - invoice-network
+
+  financing-workflow-service:
+    build:
+      context: ./financing-workflow-service
+      dockerfile: Dockerfile
+    container_name: invoice-financing-workflow
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      DATABASE_URL: postgres://admin:password123@postgres:5432/invoice_financing?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - invoice-network
+
+  credit-scoring-service:
+    build:
+      context: ./credit-scoring-service
+      dockerfile: Dockerfile
+    container_name: invoice-credit-scoring
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/invoice_financing
+    depends_on:
+      - postgres
+    networks:
+      - invoice-network
+
+  document-management-service:
+    build:
+      context: ./document-management-service
+      dockerfile: Dockerfile
+    container_name: invoice-document-management
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    environment:
+      DATABASE_URL: postgresql://admin:password123@postgres:5432/invoice_financing
+    depends_on:
+      - postgres
+    networks:
+      - invoice-network
+
+  ocr-service:
+    build:
+      context: ./ocr-service
+      dockerfile: Dockerfile
+    container_name: invoice-ocr
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
     environment:
       DATABASE_URL: postgresql://admin:password123@postgres:5432/invoice_financing
     depends_on:
