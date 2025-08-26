@@ -1,36 +1,123 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import Dict, Any
-import random
+"""
+Enhanced Invoice Financing AI Service
+Version 2.0 - Production Ready
+"""
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, validator
+from typing import Dict, List, Any, Optional, Union
+import asyncio
 import logging
 from datetime import datetime
+import os
+import uvicorn
+from prometheus_client import Counter, Histogram, generate_latest
+from loguru import logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Import our enhanced modules
+from config import settings, is_feature_enabled
+from models.ml_models import CreditScoringModel, RiskAssessmentModel, FraudDetectionModel
+from services.document_processor import DocumentProcessor
 
-app = FastAPI(title="Invoice Financing AI Service", version="1.0.0")
+# Configure enhanced logging
+logger.remove()
+logger.add(
+    "logs/ai_service.log",
+    rotation="1 day",
+    retention="30 days",
+    level=settings.log_level,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+)
+logger.add(
+    lambda msg: print(msg, end=""),
+    level="INFO",
+    format="{time:HH:mm:ss} | {level} | {message}"
+)
 
+# Initialize FastAPI app
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="Advanced AI/ML service for invoice financing platform with credit scoring, risk assessment, fraud detection, and document verification capabilities.",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None
+)
+
+# Prometheus metrics
+request_count = Counter('ai_service_requests_total', 'Total requests', ['method', 'endpoint'])
+request_duration = Histogram('ai_service_request_duration_seconds', 'Request duration', ['method', 'endpoint'])
+
+# Initialize ML models
+credit_scoring_model = None
+risk_assessment_model = None
+fraud_detection_model = None
+document_processor = None
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_hosts if settings.allowed_hosts != ["*"] else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Request models with enhanced validation
 class CreditScoreRequest(BaseModel):
     user_id: str
     company_data: Dict[str, Any]
     financial_data: Dict[str, Any]
     transaction_history: Dict[str, Any]
+    
+    @validator('user_id')
+    def validate_user_id(cls, v):
+        if not v or len(v) < 3:
+            raise ValueError('User ID must be at least 3 characters')
+        return v
 
 class RiskAssessmentRequest(BaseModel):
     invoice_data: Dict[str, Any]
     customer_data: Dict[str, Any]
     historical_data: Dict[str, Any]
+    market_data: Optional[Dict[str, Any]] = {}
+    
+    @validator('invoice_data')
+    def validate_invoice_data(cls, v):
+        required_fields = ['amount', 'days_until_due']
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f'Invoice data must include {field}')
+        return v
 
 class FraudDetectionRequest(BaseModel):
     invoice_data: Dict[str, Any]
     user_data: Dict[str, Any]
     transaction_patterns: Dict[str, Any]
+    behavioral_data: Optional[Dict[str, Any]] = {}
 
 class DocumentVerificationRequest(BaseModel):
-    document_url: str
     document_type: str
-    expected_fields: Dict[str, Any]
+    expected_fields: Optional[Dict[str, Any]] = {}
+    
+    @validator('document_type')
+    def validate_document_type(cls, v):
+        allowed_types = ['invoice', 'contract', 'identity', 'bank_statement']
+        if v not in allowed_types:
+            raise ValueError(f'Document type must be one of: {allowed_types}')
+        return v
+
+class MarketAnalysisRequest(BaseModel):
+    industry: str
+    region: str
+    time_period: Optional[str] = '3M'
+    metrics: Optional[List[str]] = ['default_rate', 'interest_rate_trend']
+
+class PredictiveAnalyticsRequest(BaseModel):
+    user_id: str
+    prediction_type: str  # 'cash_flow', 'payment_behavior', 'business_growth'
+    time_horizon: str  # '1M', '3M', '6M', '1Y'
+    input_data: Dict[str, Any]
 
 @app.get("/")
 def root():
