@@ -2,8 +2,10 @@ package api
 
 import (
 	"invoice-financing-platform/internal/services"
+	"invoice-financing-platform/middleware"
+	"invoice-financing-platform/models"
+	"os"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,6 +16,7 @@ type Server struct {
 	financingService  *services.FinancingService
 	blockchainService *services.BlockchainService
 	aiService         *services.AIService
+	fileService       *services.FileService
 	jwtSecret         string
 }
 
@@ -23,6 +26,7 @@ type ServerConfig struct {
 	FinancingService  *services.FinancingService
 	BlockchainService *services.BlockchainService
 	AIService         *services.AIService
+	FileService       *services.FileService
 	JWTSecret         string
 }
 
@@ -34,6 +38,7 @@ func NewServer(config ServerConfig) *Server {
 		financingService:  config.FinancingService,
 		blockchainService: config.BlockchainService,
 		aiService:         config.AIService,
+		fileService:       config.FileService,
 		jwtSecret:         config.JWTSecret,
 	}
 
@@ -44,17 +49,28 @@ func NewServer(config ServerConfig) *Server {
 }
 
 func (s *Server) setupMiddleware() {
-	// CORS middleware
-	s.router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-	}))
+	// Setup comprehensive security middleware
+	var securityConfig middleware.SecurityConfig
+	if gin.Mode() == gin.ReleaseMode {
+		securityConfig = middleware.ProductionSecurityConfig()
+	} else {
+		securityConfig = middleware.DefaultSecurityConfig()
+	}
+	middleware.SetupSecurity(s.router, securityConfig)
 
-	// Recovery middleware
+	// Add request ID and logging
+	s.router.Use(middleware.RequestID())
+	s.router.Use(gin.Logger())
 	s.router.Use(gin.Recovery())
+
+	// Add global rate limiting
+	s.router.Use(middleware.RateLimit())
+
+	// Add input sanitization
+	s.router.Use(middleware.SanitizeInput())
+
+	// Add query parameter validation to all routes
+	s.router.Use(middleware.ValidateQueryParams)
 }
 
 func (s *Server) setupRoutes() {
@@ -63,11 +79,12 @@ func (s *Server) setupRoutes() {
 	// Health check
 	api.GET("/health", s.healthCheck)
 	
-	// Authentication routes
+	// Authentication routes with strict rate limiting
 	auth := api.Group("/auth")
+	auth.Use(middleware.AuthRateLimit()) // Strict rate limiting for auth
 	{
-		auth.POST("/register", s.register)
-		auth.POST("/login", s.login)
+		auth.POST("/register", middleware.ValidateJSON(&models.UserRegistrationRequest{}), s.register)
+		auth.POST("/login", middleware.ValidateJSON(&models.UserLoginRequest{}), s.login)
 		auth.POST("/refresh", s.refreshToken)
 		auth.POST("/logout", s.AuthMiddleware(), s.logout)
 	}

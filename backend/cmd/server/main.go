@@ -31,6 +31,7 @@ func main() {
 	financingService := services.NewFinancingService(db)
 	blockchainService := services.NewBlockchainService(cfg.EthereumRPC, cfg.ContractAddress)
 	aiService := services.NewAIService(cfg.AIModelEndpoint)
+	fileService := services.NewFileService()
 
 	// Initialize API server
 	server := api.NewServer(api.ServerConfig{
@@ -39,6 +40,7 @@ func main() {
 		FinancingService:  financingService,
 		BlockchainService: blockchainService,
 		AIService:         aiService,
+		FileService:       fileService,
 		JWTSecret:         cfg.JWTSecret,
 	})
 

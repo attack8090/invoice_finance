@@ -37,6 +37,14 @@ func (s *InvoiceService) GetByID(id uuid.UUID) (*models.Invoice, error) {
 	return &invoice, nil
 }
 
+func (s *InvoiceService) Update(invoice *models.Invoice) error {
+	return s.db.Save(invoice).Error
+}
+
+func (s *InvoiceService) Delete(id uuid.UUID) error {
+	return s.db.Delete(&models.Invoice{}, "id = ?", id).Error
+}
+
 // FinancingService handles financing request operations
 type FinancingService struct {
 	db *gorm.DB
@@ -63,6 +71,33 @@ func (s *FinancingService) GetInvestmentOpportunities(limit int) ([]models.Finan
 		Where("status = ?", models.FinancingStatusApproved).
 		Limit(limit).Find(&requests).Error
 	return requests, err
+}
+
+func (s *FinancingService) GetRequestByID(id uuid.UUID) (*models.FinancingRequest, error) {
+	var request models.FinancingRequest
+	err := s.db.Preload("Invoice").Preload("User").Preload("Investments").
+		First(&request, "id = ?", id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &request, nil
+}
+
+func (s *FinancingService) CreateInvestment(investment *models.Investment) error {
+	return s.db.Create(investment).Error
+}
+
+func (s *FinancingService) GetInvestmentsByUserID(userID uuid.UUID) ([]models.Investment, error) {
+	var investments []models.Investment
+	err := s.db.Preload("FinancingRequest").Preload("FinancingRequest.Invoice").
+		Where("investor_id = ?", userID).Find(&investments).Error
+	return investments, err
+}
+
+func (s *FinancingService) UpdateRequestStatus(requestID uuid.UUID, status models.FinancingStatus) error {
+	return s.db.Model(&models.FinancingRequest{}).
+		Where("id = ?", requestID).
+		Update("status", status).Error
 }
 
 // BlockchainService handles blockchain operations

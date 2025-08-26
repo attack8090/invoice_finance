@@ -39,23 +39,9 @@ export const AdminDashboard: React.FC = () => (
   </Container>
 );
 
-export const InvoicesPage: React.FC = () => (
-  <Container maxWidth="lg">
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>Invoices</Typography>
-      <Typography>Invoice management page coming soon...</Typography>
-    </Box>
-  </Container>
-);
+// This file is now deprecated - individual components are in separate files
 
-export const InvestmentsPage: React.FC = () => (
-  <Container maxWidth="lg">
-    <Box sx={{ mt: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>Investments</Typography>
-      <Typography>Investment portfolio page coming soon...</Typography>
-    </Box>
-  </Container>
-);
+// InvestmentsPage is now in its own file
 
 export const MarketplacePage: React.FC = () => (
   <Container maxWidth="lg">

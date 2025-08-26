@@ -6,6 +6,7 @@ import { Box } from '@mui/material';
 
 // Components
 import Navbar from './components/Layout/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -82,11 +83,46 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
-                  <Route path="/sme-dashboard" element={<SMEDashboard />} />
-                  <Route path="/investor-dashboard" element={<InvestorDashboard />} />
-                  <Route path="/admin-dashboard" element={<AdminDashboard />} />
-                  <Route path="/invoices" element={<InvoicesPage />} />
-                  <Route path="/investments" element={<InvestmentsPage />} />
+                  <Route 
+                    path="/sme-dashboard" 
+                    element={
+                      <ProtectedRoute allowedRoles={['sme']}>
+                        <SMEDashboard />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/investor-dashboard" 
+                    element={
+                      <ProtectedRoute allowedRoles={['investor']}>
+                        <InvestorDashboard />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin-dashboard" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <AdminDashboard />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/invoices" 
+                    element={
+                      <ProtectedRoute allowedRoles={['sme']}>
+                        <InvoicesPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/investments" 
+                    element={
+                      <ProtectedRoute allowedRoles={['investor']}>
+                        <InvestmentsPage />
+                      </ProtectedRoute>
+                    } 
+                  />
                   <Route path="/marketplace" element={<MarketplacePage />} />
                 </Routes>
               </Box>

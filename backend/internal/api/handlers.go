@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"invoice-financing-platform/internal/models"
 
@@ -138,13 +139,105 @@ func (s *Server) getInvoice(c *gin.Context) {
 }
 
 func (s *Server) updateInvoice(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Update invoice endpoint"})
+	idParam := c.Param("id")
+	invoiceID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invoice ID"})
+		return
+	}
+
+	userIDStr, _ := c.Get("user_id")
+	userID, _ := uuid.Parse(userIDStr.(string))
+
+	// Check if invoice exists and belongs to user
+	existingInvoice, err := s.invoiceService.GetByID(invoiceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invoice not found"})
+		return
+	}
+
+	if existingInvoice.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	var updateData struct {
+		InvoiceNumber string  `json:"invoice_number"`
+		CustomerName  string  `json:"customer_name"`
+		CustomerEmail string  `json:"customer_email"`
+		InvoiceAmount float64 `json:"invoice_amount"`
+		Description   string  `json:"description"`
+	}
+
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Update invoice fields
+	if updateData.InvoiceNumber != "" {
+		existingInvoice.InvoiceNumber = updateData.InvoiceNumber
+	}
+	if updateData.CustomerName != "" {
+		existingInvoice.CustomerName = updateData.CustomerName
+	}
+	if updateData.CustomerEmail != "" {
+		existingInvoice.CustomerEmail = updateData.CustomerEmail
+	}
+	if updateData.InvoiceAmount > 0 {
+		existingInvoice.InvoiceAmount = updateData.InvoiceAmount
+	}
+	if updateData.Description != "" {
+		existingInvoice.Description = updateData.Description
+	}
+
+	if err := s.invoiceService.Update(existingInvoice); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update invoice"})
+		return
+	}
+
+	c.JSON(http.StatusOK, existingInvoice)
 }
 
 func (s *Server) deleteInvoice(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Delete invoice endpoint"})
+	idParam := c.Param("id")
+	invoiceID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invoice ID"})
+		return
+	}
+
+	userIDStr, _ := c.Get("user_id")
+	userID, _ := uuid.Parse(userIDStr.(string))
+
+	// Check if invoice exists and belongs to user
+	existingInvoice, err := s.invoiceService.GetByID(invoiceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invoice not found"})
+		return
+	}
+
+	if existingInvoice.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	// Check if invoice has active financing requests
+	if len(existingInvoice.FinancingRequests) > 0 {
+		for _, req := range existingInvoice.FinancingRequests {
+			if req.Status == models.FinancingStatusPending || req.Status == models.FinancingStatusApproved {
+				c.JSON(http.StatusConflict, gin.H{"error": "Cannot delete invoice with active financing requests"})
+				return
+			}
+		}
+	}
+
+	if err := s.invoiceService.Delete(invoiceID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete invoice"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Invoice deleted successfully"})
 }
 
 func (s *Server) verifyInvoice(c *gin.Context) {
@@ -153,8 +246,76 @@ func (s *Server) verifyInvoice(c *gin.Context) {
 }
 
 func (s *Server) uploadInvoiceDocument(c *gin.Context) {
-	// Implementation placeholder - file upload
-	c.JSON(http.StatusOK, gin.H{"message": "Upload invoice document endpoint"})
+	idParam := c.Param("id")
+	invoiceID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invoice ID"})
+		return
+	}
+
+	userIDStr, _ := c.Get("user_id")
+	userID, _ := uuid.Parse(userIDStr.(string))
+
+	// Check if invoice exists and belongs to user
+	existingInvoice, err := s.invoiceService.GetByID(invoiceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invoice not found"})
+		return
+	}
+
+	if existingInvoice.UserID != userID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	// Parse multipart form
+	file, header, err := c.Request.FormFile("document")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded or invalid file"})
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	allowedTypes := map[string]bool{
+		"application/pdf":  true,
+		"image/jpeg":       true,
+		"image/png":        true,
+		"image/jpg":        true,
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if !allowedTypes[contentType] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type. Only PDF, JPEG, and PNG files are allowed"})
+		return
+	}
+
+	// Validate file size (10MB max)
+	maxSize := int64(10 << 20) // 10MB
+	if header.Size > maxSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File size too large. Maximum size is 10MB"})
+		return
+	}
+
+	// Save file using file service
+	fileName, err := s.fileService.SaveInvoiceDocument(file, header, invoiceID.String())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+		return
+	}
+
+	// Update invoice with document URL
+	existingInvoice.DocumentURL = fileName
+	if err := s.invoiceService.Update(existingInvoice); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update invoice"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "File uploaded successfully",
+		"document_url": fileName,
+		"invoice":      existingInvoice,
+	})
 }
 
 // Financing handlers
@@ -191,8 +352,20 @@ func (s *Server) createFinancingRequest(c *gin.Context) {
 }
 
 func (s *Server) getFinancingRequest(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Get financing request endpoint"})
+	idParam := c.Param("id")
+	requestID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request ID"})
+		return
+	}
+
+	request, err := s.financingService.GetRequestByID(requestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Financing request not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, request)
 }
 
 func (s *Server) updateFinancingRequest(c *gin.Context) {
@@ -201,13 +374,78 @@ func (s *Server) updateFinancingRequest(c *gin.Context) {
 }
 
 func (s *Server) approveFinancingRequest(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Approve financing request endpoint"})
+	idParam := c.Param("id")
+	requestID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request ID"})
+		return
+	}
+
+	userRole, _ := c.Get("user_role")
+	if userRole != string(models.RoleAdmin) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+		return
+	}
+
+	request, err := s.financingService.GetRequestByID(requestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Financing request not found"})
+		return
+	}
+
+	if request.Status != models.FinancingStatusPending {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending requests can be approved"})
+		return
+	}
+
+	if err := s.financingService.UpdateRequestStatus(requestID, models.FinancingStatusApproved); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve request"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Financing request approved successfully"})
 }
 
 func (s *Server) rejectFinancingRequest(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Reject financing request endpoint"})
+	idParam := c.Param("id")
+	requestID, err := uuid.Parse(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request ID"})
+		return
+	}
+
+	userRole, _ := c.Get("user_role")
+	if userRole != string(models.RoleAdmin) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+		return
+	}
+
+	var rejectionData struct {
+		Reason string `json:"reason"`
+	}
+
+	if err := c.ShouldBindJSON(&rejectionData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	request, err := s.financingService.GetRequestByID(requestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Financing request not found"})
+		return
+	}
+
+	if request.Status != models.FinancingStatusPending {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending requests can be rejected"})
+		return
+	}
+
+	if err := s.financingService.UpdateRequestStatus(requestID, models.FinancingStatusRejected); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject request"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Financing request rejected", "reason": rejectionData.Reason})
 }
 
 func (s *Server) getInvestmentOpportunities(c *gin.Context) {
@@ -224,13 +462,61 @@ func (s *Server) getInvestmentOpportunities(c *gin.Context) {
 }
 
 func (s *Server) createInvestment(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Create investment endpoint"})
+	userIDStr, _ := c.Get("user_id")
+	userID, _ := uuid.Parse(userIDStr.(string))
+
+	var investmentReq struct {
+		FinancingRequestID uuid.UUID `json:"financing_request_id" binding:"required"`
+		Amount             float64   `json:"amount" binding:"required,gt=0"`
+	}
+
+	if err := c.ShouldBindJSON(&investmentReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get financing request to validate
+	financingRequest, err := s.financingService.GetRequestByID(investmentReq.FinancingRequestID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Financing request not found"})
+		return
+	}
+
+	if financingRequest.Status != models.FinancingStatusApproved {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Financing request not approved for investment"})
+		return
+	}
+
+	// Create investment
+	investment := &models.Investment{
+		FinancingRequestID: investmentReq.FinancingRequestID,
+		InvestorID:         userID,
+		Amount:             investmentReq.Amount,
+		ExpectedReturn:     investmentReq.Amount * (1 + financingRequest.InterestRate/100),
+		Status:             models.InvestmentStatusActive,
+		InvestmentDate:     time.Now(),
+		MaturityDate:       time.Now().AddDate(0, 0, 30), // 30 days from now
+	}
+
+	if err := s.financingService.CreateInvestment(investment); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create investment"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, investment)
 }
 
 func (s *Server) getUserInvestments(c *gin.Context) {
-	// Implementation placeholder
-	c.JSON(http.StatusOK, gin.H{"message": "Get user investments endpoint"})
+	userIDStr, _ := c.Get("user_id")
+	userID, _ := uuid.Parse(userIDStr.(string))
+
+	investments, err := s.financingService.GetInvestmentsByUserID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user investments"})
+		return
+	}
+
+	c.JSON(http.StatusOK, investments)
 }
 
 // Blockchain handlers
