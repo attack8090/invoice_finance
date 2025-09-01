@@ -1,36 +1,59 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"time"
 
+	"invoice-financing-platform/internal/database"
 	"invoice-financing-platform/internal/models"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // InvoiceService handles invoice-related operations
 type InvoiceService struct {
-	db *gorm.DB
+	db *database.MongoDB
 }
 
-func NewInvoiceService(db *gorm.DB) *InvoiceService {
+func NewInvoiceService(db *database.MongoDB) *InvoiceService {
 	return &InvoiceService{db: db}
 }
 
 func (s *InvoiceService) Create(invoice *models.Invoice) error {
-	return s.db.Create(invoice).Error
+	invoice.UUID = uuid.New()
+	invoice.CreatedAt = time.Now()
+	invoice.UpdatedAt = time.Now()
+	
+	collection := s.db.Database.Collection("invoices")
+	_, err := collection.InsertOne(context.Background(), invoice)
+	return err
 }
 
 func (s *InvoiceService) GetByUserID(userID uuid.UUID) ([]models.Invoice, error) {
 	var invoices []models.Invoice
-	err := s.db.Preload("FinancingRequests").Where("user_id = ?", userID).Find(&invoices).Error
+	collection := s.db.Database.Collection("invoices")
+	
+	filter := bson.M{"user_id": userID}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	
+	err = cursor.All(context.Background(), &invoices)
 	return invoices, err
 }
 
 func (s *InvoiceService) GetByID(id uuid.UUID) (*models.Invoice, error) {
 	var invoice models.Invoice
-	err := s.db.Preload("User").Preload("FinancingRequests").First(&invoice, "id = ?", id).Error
+	collection := s.db.Database.Collection("invoices")
+	
+	filter := bson.M{"uuid": id}
+	err := collection.FindOne(context.Background(), filter).Decode(&invoice)
 	if err != nil {
 		return nil, err
 	}
@@ -38,45 +61,81 @@ func (s *InvoiceService) GetByID(id uuid.UUID) (*models.Invoice, error) {
 }
 
 func (s *InvoiceService) Update(invoice *models.Invoice) error {
-	return s.db.Save(invoice).Error
+	invoice.UpdatedAt = time.Now()
+	collection := s.db.Database.Collection("invoices")
+	
+	filter := bson.M{"uuid": invoice.UUID}
+	update := bson.M{"$set": invoice}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 func (s *InvoiceService) Delete(id uuid.UUID) error {
-	return s.db.Delete(&models.Invoice{}, "id = ?", id).Error
+	collection := s.db.Database.Collection("invoices")
+	
+	// Soft delete by setting deleted_at
+	filter := bson.M{"uuid": id}
+	now := time.Now()
+	update := bson.M{"$set": bson.M{"deleted_at": now}}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 // FinancingService handles financing request operations
 type FinancingService struct {
-	db *gorm.DB
+	db *database.MongoDB
 }
 
-func NewFinancingService(db *gorm.DB) *FinancingService {
+func NewFinancingService(db *database.MongoDB) *FinancingService {
 	return &FinancingService{db: db}
 }
 
 func (s *FinancingService) CreateRequest(request *models.FinancingRequest) error {
-	return s.db.Create(request).Error
+	request.UUID = uuid.New()
+	request.CreatedAt = time.Now()
+	request.UpdatedAt = time.Now()
+	
+	collection := s.db.Database.Collection("financing_requests")
+	_, err := collection.InsertOne(context.Background(), request)
+	return err
 }
 
 func (s *FinancingService) GetRequestsByUserID(userID uuid.UUID) ([]models.FinancingRequest, error) {
 	var requests []models.FinancingRequest
-	err := s.db.Preload("Invoice").Preload("Investments").
-		Where("user_id = ?", userID).Find(&requests).Error
+	collection := s.db.Database.Collection("financing_requests")
+	
+	filter := bson.M{"user_id": userID}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	
+	err = cursor.All(context.Background(), &requests)
 	return requests, err
 }
 
 func (s *FinancingService) GetInvestmentOpportunities(limit int) ([]models.FinancingRequest, error) {
 	var requests []models.FinancingRequest
-	err := s.db.Preload("Invoice").Preload("User").
-		Where("status = ?", models.FinancingStatusApproved).
-		Limit(limit).Find(&requests).Error
+	collection := s.db.Database.Collection("financing_requests")
+	
+	filter := bson.M{"status": models.FinancingStatusApproved}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	
+	err = cursor.All(context.Background(), &requests)
 	return requests, err
 }
 
 func (s *FinancingService) GetRequestByID(id uuid.UUID) (*models.FinancingRequest, error) {
 	var request models.FinancingRequest
-	err := s.db.Preload("Invoice").Preload("User").Preload("Investments").
-		First(&request, "id = ?", id).Error
+	collection := s.db.Database.Collection("financing_requests")
+	
+	filter := bson.M{"uuid": id}
+	err := collection.FindOne(context.Background(), filter).Decode(&request)
 	if err != nil {
 		return nil, err
 	}
@@ -84,20 +143,40 @@ func (s *FinancingService) GetRequestByID(id uuid.UUID) (*models.FinancingReques
 }
 
 func (s *FinancingService) CreateInvestment(investment *models.Investment) error {
-	return s.db.Create(investment).Error
+	investment.UUID = uuid.New()
+	investment.CreatedAt = time.Now()
+	investment.UpdatedAt = time.Now()
+	
+	collection := s.db.Database.Collection("investments")
+	_, err := collection.InsertOne(context.Background(), investment)
+	return err
 }
 
 func (s *FinancingService) GetInvestmentsByUserID(userID uuid.UUID) ([]models.Investment, error) {
 	var investments []models.Investment
-	err := s.db.Preload("FinancingRequest").Preload("FinancingRequest.Invoice").
-		Where("investor_id = ?", userID).Find(&investments).Error
+	collection := s.db.Database.Collection("investments")
+	
+	filter := bson.M{"investor_id": userID}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	
+	err = cursor.All(context.Background(), &investments)
 	return investments, err
 }
 
 func (s *FinancingService) UpdateRequestStatus(requestID uuid.UUID, status models.FinancingStatus) error {
-	return s.db.Model(&models.FinancingRequest{}).
-		Where("id = ?", requestID).
-		Update("status", status).Error
+	collection := s.db.Database.Collection("financing_requests")
+	
+	filter := bson.M{"uuid": requestID}
+	update := bson.M{"$set": bson.M{
+		"status": status,
+		"updated_at": time.Now(),
+	}}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 // BlockchainService handles blockchain operations

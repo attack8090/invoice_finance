@@ -1,28 +1,41 @@
 package services
 
 import (
+	"context"
+	"time"
 
+	"invoice-financing-platform/internal/database"
 	"invoice-financing-platform/internal/models"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type UserService struct {
-	db *gorm.DB
+	db *database.MongoDB
 }
 
-func NewUserService(db *gorm.DB) *UserService {
+func NewUserService(db *database.MongoDB) *UserService {
 	return &UserService{db: db}
 }
 
 func (s *UserService) Create(user *models.User) error {
-	return s.db.Create(user).Error
+	user.UUID = uuid.New()
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
+	
+	collection := s.db.Database.Collection("users")
+	_, err := collection.InsertOne(context.Background(), user)
+	return err
 }
 
 func (s *UserService) GetByID(id uuid.UUID) (*models.User, error) {
 	var user models.User
-	err := s.db.First(&user, "id = ?", id).Error
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"uuid": id}
+	err := collection.FindOne(context.Background(), filter).Decode(&user)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +44,10 @@ func (s *UserService) GetByID(id uuid.UUID) (*models.User, error) {
 
 func (s *UserService) GetByEmail(email string) (*models.User, error) {
 	var user models.User
-	err := s.db.First(&user, "email = ?", email).Error
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"email": email}
+	err := collection.FindOne(context.Background(), filter).Decode(&user)
 	if err != nil {
 		return nil, err
 	}
@@ -39,35 +55,78 @@ func (s *UserService) GetByEmail(email string) (*models.User, error) {
 }
 
 func (s *UserService) Update(user *models.User) error {
-	return s.db.Save(user).Error
+	user.UpdatedAt = time.Now()
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"uuid": user.UUID}
+	update := bson.M{"$set": user}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 func (s *UserService) Delete(id uuid.UUID) error {
-	return s.db.Delete(&models.User{}, "id = ?", id).Error
+	collection := s.db.Database.Collection("users")
+	
+	// Soft delete by setting deleted_at
+	filter := bson.M{"uuid": id}
+	now := time.Now()
+	update := bson.M{"$set": bson.M{"deleted_at": now}}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 func (s *UserService) GetAll(limit, offset int) ([]models.User, error) {
 	var users []models.User
-	err := s.db.Limit(limit).Offset(offset).Find(&users).Error
+	collection := s.db.Database.Collection("users")
+	
+	opts := options.Find().SetLimit(int64(limit)).SetSkip(int64(offset))
+	cursor, err := collection.Find(context.Background(), bson.M{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	
+	err = cursor.All(context.Background(), &users)
 	return users, err
 }
 
 func (s *UserService) GetByRole(role models.UserRole) ([]models.User, error) {
 	var users []models.User
-	err := s.db.Where("role = ?", role).Find(&users).Error
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"role": role}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	
+	err = cursor.All(context.Background(), &users)
 	return users, err
 }
 
 func (s *UserService) Verify(userID uuid.UUID) error {
-	return s.db.Model(&models.User{}).
-		Where("id = ?", userID).
-		Update("is_verified", true).Error
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"uuid": userID}
+	update := bson.M{"$set": bson.M{
+		"is_verified": true,
+		"updated_at": time.Now(),
+	}}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 func (s *UserService) UpdateCreditScore(userID uuid.UUID, score int) error {
-	return s.db.Model(&models.User{}).
-		Where("id = ?", userID).
-		Update("credit_score", score).Error
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"uuid": userID}
+	update := bson.M{"$set": bson.M{
+		"credit_score": score,
+		"updated_at": time.Now(),
+	}}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }
 
 func (s *UserService) GetStats(userID uuid.UUID) (map[string]interface{}, error) {
@@ -80,47 +139,33 @@ func (s *UserService) GetStats(userID uuid.UUID) (map[string]interface{}, error)
 
 	if user.Role == models.RoleSME {
 		// SME stats
-		var totalInvoices int64
-		s.db.Model(&models.Invoice{}).Where("user_id = ?", userID).Count(&totalInvoices)
+		invoiceCollection := s.db.Database.Collection("invoices")
+		totalInvoices, _ := invoiceCollection.CountDocuments(context.Background(), bson.M{"user_id": userID})
 
-		var totalFinanced float64
-		s.db.Model(&models.FinancingRequest{}).
-			Where("user_id = ? AND status = ?", userID, models.FinancingStatusCompleted).
-			Select("COALESCE(SUM(net_amount), 0)").Scan(&totalFinanced)
-
-		var pendingRequests int64
-		s.db.Model(&models.FinancingRequest{}).
-			Where("user_id = ? AND status = ?", userID, models.FinancingStatusPending).
-			Count(&pendingRequests)
+		financingCollection := s.db.Database.Collection("financing_requests")
+		pendingRequests, _ := financingCollection.CountDocuments(context.Background(), bson.M{
+			"user_id": userID,
+			"status":  models.FinancingStatusPending,
+		})
 
 		stats["total_invoices"] = totalInvoices
-		stats["total_financed"] = totalFinanced
+		stats["total_financed"] = user.TotalFinanced
 		stats["pending_requests"] = pendingRequests
 		stats["credit_score"] = user.CreditScore
 
 	} else if user.Role == models.RoleInvestor {
 		// Investor stats
-		var totalInvestments int64
-		s.db.Model(&models.Investment{}).Where("investor_id = ?", userID).Count(&totalInvestments)
+		investmentCollection := s.db.Database.Collection("investments")
+		totalInvestments, _ := investmentCollection.CountDocuments(context.Background(), bson.M{"investor_id": userID})
 
-		var totalInvested float64
-		s.db.Model(&models.Investment{}).
-			Where("investor_id = ?", userID).
-			Select("COALESCE(SUM(amount), 0)").Scan(&totalInvested)
-
-		var totalReturns float64
-		s.db.Model(&models.Investment{}).
-			Where("investor_id = ? AND status = ?", userID, models.InvestmentStatusCompleted).
-			Select("COALESCE(SUM(actual_return), 0)").Scan(&totalReturns)
-
-		var activeInvestments int64
-		s.db.Model(&models.Investment{}).
-			Where("investor_id = ? AND status = ?", userID, models.InvestmentStatusActive).
-			Count(&activeInvestments)
+		activeInvestments, _ := investmentCollection.CountDocuments(context.Background(), bson.M{
+			"investor_id": userID,
+			"status":      models.InvestmentStatusActive,
+		})
 
 		stats["total_investments"] = totalInvestments
-		stats["total_invested"] = totalInvested
-		stats["total_returns"] = totalReturns
+		stats["total_invested"] = user.TotalInvestment
+		stats["total_returns"] = 0 // Can be calculated from completed investments
 		stats["active_investments"] = activeInvestments
 	}
 
@@ -128,7 +173,13 @@ func (s *UserService) GetStats(userID uuid.UUID) (map[string]interface{}, error)
 }
 
 func (s *UserService) UpdateWalletAddress(userID uuid.UUID, walletAddress string) error {
-	return s.db.Model(&models.User{}).
-		Where("id = ?", userID).
-		Update("wallet_address", walletAddress).Error
+	collection := s.db.Database.Collection("users")
+	
+	filter := bson.M{"uuid": userID}
+	update := bson.M{"$set": bson.M{
+		"wallet_address": walletAddress,
+		"updated_at":     time.Now(),
+	}}
+	_, err := collection.UpdateOne(context.Background(), filter, update)
+	return err
 }

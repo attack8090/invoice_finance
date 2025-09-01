@@ -20,7 +20,7 @@ func Load() *Config {
 	port, _ := strconv.Atoi(getEnv("PORT", "8080"))
 
 	return &Config{
-		DatabaseURL:     getEnv("DATABASE_URL", "postgres://localhost/invoice_financing?sslmode=disable"),
+		DatabaseURL:     getEnv("DATABASE_URL", "mongodb://localhost:27017/invoice_financing"),
 		EthereumRPC:     getEnv("ETHEREUM_RPC", "http://localhost:8545"),
 		ContractAddress: getEnv("CONTRACT_ADDRESS", "0x0000000000000000000000000000000000000000"),
 		JWTSecret:       getEnv("JWT_SECRET", "your-secret-key-change-in-production"),

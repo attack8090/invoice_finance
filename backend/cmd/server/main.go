@@ -20,10 +20,17 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// Run migrations
+	// Run migrations (create indexes)
 	if err := database.RunMigrations(db); err != nil {
 		log.Fatal("Failed to run migrations:", err)
 	}
+
+	// Ensure database is closed on exit
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}()
 
 	// Initialize services
 	userService := services.NewUserService(db)

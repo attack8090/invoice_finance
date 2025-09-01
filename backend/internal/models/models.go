@@ -4,27 +4,28 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type User struct {
-	ID                uuid.UUID `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	Email             string    `json:"email" gorm:"unique;not null"`
-	PasswordHash      string    `json:"-" gorm:"not null"`
-	FirstName         string    `json:"first_name" gorm:"not null"`
-	LastName          string    `json:"last_name" gorm:"not null"`
-	Role              UserRole  `json:"role" gorm:"not null"`
-	CompanyName       string    `json:"company_name"`
-	TaxID             string    `json:"tax_id"`
-	WalletAddress     string    `json:"wallet_address"`
-	IsVerified        bool      `json:"is_verified" gorm:"default:false"`
-	CreditScore       int       `json:"credit_score" gorm:"default:0"`
-	TotalInvestment   float64   `json:"total_investment" gorm:"default:0"`
-	TotalFinanced     float64   `json:"total_financed" gorm:"default:0"`
-	ProfileCompleted  bool      `json:"profile_completed" gorm:"default:false"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
-	DeletedAt         gorm.DeletedAt `json:"-" gorm:"index"`
+	ID                primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UUID              uuid.UUID          `json:"uuid" bson:"uuid"`
+	Email             string             `json:"email" bson:"email"`
+	PasswordHash      string             `json:"-" bson:"password_hash"`
+	FirstName         string             `json:"first_name" bson:"first_name"`
+	LastName          string             `json:"last_name" bson:"last_name"`
+	Role              UserRole           `json:"role" bson:"role"`
+	CompanyName       string             `json:"company_name" bson:"company_name"`
+	TaxID             string             `json:"tax_id" bson:"tax_id"`
+	WalletAddress     string             `json:"wallet_address" bson:"wallet_address"`
+	IsVerified        bool               `json:"is_verified" bson:"is_verified"`
+	CreditScore       int                `json:"credit_score" bson:"credit_score"`
+	TotalInvestment   float64            `json:"total_investment" bson:"total_investment"`
+	TotalFinanced     float64            `json:"total_financed" bson:"total_financed"`
+	ProfileCompleted  bool               `json:"profile_completed" bson:"profile_completed"`
+	CreatedAt         time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at" bson:"updated_at"`
+	DeletedAt         *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 }
 
 type UserRole string
@@ -36,28 +37,25 @@ const (
 )
 
 type Invoice struct {
-	ID                  uuid.UUID       `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	UserID              uuid.UUID       `json:"user_id" gorm:"type:uuid;not null"`
-	InvoiceNumber       string          `json:"invoice_number" gorm:"not null"`
-	CustomerName        string          `json:"customer_name" gorm:"not null"`
-	CustomerEmail       string          `json:"customer_email"`
-	InvoiceAmount       float64         `json:"invoice_amount" gorm:"not null"`
-	DueDate             time.Time       `json:"due_date" gorm:"not null"`
-	IssueDate           time.Time       `json:"issue_date" gorm:"not null"`
-	Description         string          `json:"description"`
-	Status              InvoiceStatus   `json:"status" gorm:"not null;default:'pending'"`
-	DocumentURL         string          `json:"document_url"`
-	VerificationStatus  VerificationStatus `json:"verification_status" gorm:"default:'pending'"`
-	AIRiskScore         float64         `json:"ai_risk_score" gorm:"default:0"`
-	BlockchainTxHash    string          `json:"blockchain_tx_hash"`
-	TokenID             string          `json:"token_id"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	DeletedAt           gorm.DeletedAt  `json:"-" gorm:"index"`
-	
-	// Relationships
-	User                User            `json:"user" gorm:"foreignKey:UserID"`
-	FinancingRequests   []FinancingRequest `json:"financing_requests"`
+	ID                  primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UUID                uuid.UUID          `json:"uuid" bson:"uuid"`
+	UserID              uuid.UUID          `json:"user_id" bson:"user_id"`
+	InvoiceNumber       string             `json:"invoice_number" bson:"invoice_number"`
+	CustomerName        string             `json:"customer_name" bson:"customer_name"`
+	CustomerEmail       string             `json:"customer_email" bson:"customer_email"`
+	InvoiceAmount       float64            `json:"invoice_amount" bson:"invoice_amount"`
+	DueDate             time.Time          `json:"due_date" bson:"due_date"`
+	IssueDate           time.Time          `json:"issue_date" bson:"issue_date"`
+	Description         string             `json:"description" bson:"description"`
+	Status              InvoiceStatus      `json:"status" bson:"status"`
+	DocumentURL         string             `json:"document_url" bson:"document_url"`
+	VerificationStatus  VerificationStatus `json:"verification_status" bson:"verification_status"`
+	AIRiskScore         float64            `json:"ai_risk_score" bson:"ai_risk_score"`
+	BlockchainTxHash    string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
+	TokenID             string             `json:"token_id" bson:"token_id"`
+	CreatedAt           time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at" bson:"updated_at"`
+	DeletedAt           *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 }
 
 type InvoiceStatus string
@@ -81,30 +79,26 @@ const (
 )
 
 type FinancingRequest struct {
-	ID                uuid.UUID         `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	InvoiceID         uuid.UUID         `json:"invoice_id" gorm:"type:uuid;not null"`
-	UserID            uuid.UUID         `json:"user_id" gorm:"type:uuid;not null"`
-	RequestedAmount   float64           `json:"requested_amount" gorm:"not null"`
-	InterestRate      float64           `json:"interest_rate" gorm:"not null"`
-	FinancingFee      float64           `json:"financing_fee" gorm:"not null"`
-	NetAmount         float64           `json:"net_amount" gorm:"not null"`
-	Status            FinancingStatus   `json:"status" gorm:"not null;default:'pending'"`
-	Description       string            `json:"description"`
-	ExpectedReturn    float64           `json:"expected_return"`
-	RiskLevel         RiskLevel         `json:"risk_level" gorm:"not null"`
-	ApprovedAt        *time.Time        `json:"approved_at"`
-	FundedAt          *time.Time        `json:"funded_at"`
-	CompletedAt       *time.Time        `json:"completed_at"`
-	BlockchainTxHash  string            `json:"blockchain_tx_hash"`
-	SmartContractAddr string            `json:"smart_contract_addr"`
-	CreatedAt         time.Time         `json:"created_at"`
-	UpdatedAt         time.Time         `json:"updated_at"`
-	DeletedAt         gorm.DeletedAt    `json:"-" gorm:"index"`
-	
-	// Relationships
-	Invoice           Invoice           `json:"invoice" gorm:"foreignKey:InvoiceID"`
-	User              User              `json:"user" gorm:"foreignKey:UserID"`
-	Investments       []Investment      `json:"investments"`
+	ID                primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UUID              uuid.UUID          `json:"uuid" bson:"uuid"`
+	InvoiceID         uuid.UUID          `json:"invoice_id" bson:"invoice_id"`
+	UserID            uuid.UUID          `json:"user_id" bson:"user_id"`
+	RequestedAmount   float64            `json:"requested_amount" bson:"requested_amount"`
+	InterestRate      float64            `json:"interest_rate" bson:"interest_rate"`
+	FinancingFee      float64            `json:"financing_fee" bson:"financing_fee"`
+	NetAmount         float64            `json:"net_amount" bson:"net_amount"`
+	Status            FinancingStatus    `json:"status" bson:"status"`
+	Description       string             `json:"description" bson:"description"`
+	ExpectedReturn    float64            `json:"expected_return" bson:"expected_return"`
+	RiskLevel         RiskLevel          `json:"risk_level" bson:"risk_level"`
+	ApprovedAt        *time.Time         `json:"approved_at" bson:"approved_at,omitempty"`
+	FundedAt          *time.Time         `json:"funded_at" bson:"funded_at,omitempty"`
+	CompletedAt       *time.Time         `json:"completed_at" bson:"completed_at,omitempty"`
+	BlockchainTxHash  string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
+	SmartContractAddr string             `json:"smart_contract_addr" bson:"smart_contract_addr"`
+	CreatedAt         time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at" bson:"updated_at"`
+	DeletedAt         *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 }
 
 type FinancingStatus string
@@ -127,24 +121,21 @@ const (
 )
 
 type Investment struct {
-	ID                 uuid.UUID         `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	FinancingRequestID uuid.UUID         `json:"financing_request_id" gorm:"type:uuid;not null"`
-	InvestorID         uuid.UUID         `json:"investor_id" gorm:"type:uuid;not null"`
-	Amount             float64           `json:"amount" gorm:"not null"`
-	ExpectedReturn     float64           `json:"expected_return" gorm:"not null"`
-	ActualReturn       float64           `json:"actual_return" gorm:"default:0"`
-	Status             InvestmentStatus  `json:"status" gorm:"not null;default:'pending'"`
-	InvestmentDate     time.Time         `json:"investment_date"`
-	MaturityDate       time.Time         `json:"maturity_date"`
-	ReturnDate         *time.Time        `json:"return_date"`
-	BlockchainTxHash   string            `json:"blockchain_tx_hash"`
-	CreatedAt          time.Time         `json:"created_at"`
-	UpdatedAt          time.Time         `json:"updated_at"`
-	DeletedAt          gorm.DeletedAt    `json:"-" gorm:"index"`
-	
-	// Relationships
-	FinancingRequest   FinancingRequest  `json:"financing_request" gorm:"foreignKey:FinancingRequestID"`
-	Investor           User              `json:"investor" gorm:"foreignKey:InvestorID"`
+	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UUID               uuid.UUID          `json:"uuid" bson:"uuid"`
+	FinancingRequestID uuid.UUID          `json:"financing_request_id" bson:"financing_request_id"`
+	InvestorID         uuid.UUID          `json:"investor_id" bson:"investor_id"`
+	Amount             float64            `json:"amount" bson:"amount"`
+	ExpectedReturn     float64            `json:"expected_return" bson:"expected_return"`
+	ActualReturn       float64            `json:"actual_return" bson:"actual_return"`
+	Status             InvestmentStatus   `json:"status" bson:"status"`
+	InvestmentDate     time.Time          `json:"investment_date" bson:"investment_date"`
+	MaturityDate       time.Time          `json:"maturity_date" bson:"maturity_date"`
+	ReturnDate         *time.Time         `json:"return_date" bson:"return_date,omitempty"`
+	BlockchainTxHash   string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
+	CreatedAt          time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at" bson:"updated_at"`
+	DeletedAt          *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 }
 
 type InvestmentStatus string
@@ -157,21 +148,20 @@ const (
 )
 
 type Transaction struct {
-	ID                uuid.UUID        `json:"id" gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	UserID            uuid.UUID        `json:"user_id" gorm:"type:uuid;not null"`
-	Type              TransactionType  `json:"type" gorm:"not null"`
-	Amount            float64          `json:"amount" gorm:"not null"`
-	Status            TransactionStatus `json:"status" gorm:"not null;default:'pending'"`
-	Description       string           `json:"description"`
-	Reference         string           `json:"reference"`
-	BlockchainTxHash  string           `json:"blockchain_tx_hash"`
-	GasUsed           int64            `json:"gas_used"`
-	GasPrice          int64            `json:"gas_price"`
-	CreatedAt         time.Time        `json:"created_at"`
-	UpdatedAt         time.Time        `json:"updated_at"`
-	
-	// Relationships
-	User              User             `json:"user" gorm:"foreignKey:UserID"`
+	ID                primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UUID              uuid.UUID          `json:"uuid" bson:"uuid"`
+	UserID            uuid.UUID          `json:"user_id" bson:"user_id"`
+	Type              TransactionType    `json:"type" bson:"type"`
+	Amount            float64            `json:"amount" bson:"amount"`
+	Status            TransactionStatus  `json:"status" bson:"status"`
+	Description       string             `json:"description" bson:"description"`
+	Reference         string             `json:"reference" bson:"reference"`
+	BlockchainTxHash  string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
+	GasUsed           int64              `json:"gas_used" bson:"gas_used"`
+	GasPrice          int64              `json:"gas_price" bson:"gas_price"`
+	CreatedAt         time.Time          `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at" bson:"updated_at"`
+	DeletedAt         *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 }
 
 type TransactionType string
