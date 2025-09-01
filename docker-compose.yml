@@ -7,8 +7,8 @@ services:
     container_name: invoice-db
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_ROOT_USERNAME: invoice
+      MONGO_INITDB_ROOT_PASSWORD: yts1247@21BK
       MONGO_INITDB_DATABASE: invoice_financing
     ports:
       - "27017:27017"
@@ -40,7 +40,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
       REDIS_URL: redis://redis:6379
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       ETHEREUM_RPC: http://localhost:8545
@@ -101,7 +101,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
     depends_on:
       - mongodb
     networks:
@@ -117,7 +117,7 @@ services:
     ports:
       - "8084:8084"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/blockchain_ledger
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/blockchain_ledger
       REDIS_URL: redis://redis:6379
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       HYPERLEDGER_FABRIC_NETWORK: development
@@ -139,7 +139,7 @@ services:
     ports:
       - "8085:8085"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/payment_service
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/payment_service
       REDIS_HOST: redis
       REDIS_PORT: 6379
       EPIC_5_ENABLED: "true"
@@ -164,7 +164,7 @@ services:
     ports:
       - "8086:8086"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/notification_service
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/notification_service
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SMTP_HOST: smtp.gmail.com
@@ -191,7 +191,7 @@ services:
     ports:
       - "8087:8087"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/bank_integration
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/bank_integration
       REDIS_URL: redis://redis:6379
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       EPIC4_ENABLED: "true"
@@ -215,7 +215,7 @@ services:
     ports:
       - "8088:8088"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/integration_external_data
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/integration_external_data
       REDIS_HOST: redis
       REDIS_PORT: 6379
     depends_on:
@@ -234,7 +234,7 @@ services:
     ports:
       - "8081:8081"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
       REDIS_URL: redis://redis:6379
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
     depends_on:
@@ -252,7 +252,7 @@ services:
     ports:
       - "8082:8082"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
       REDIS_URL: redis://redis:6379
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
     depends_on:
@@ -270,7 +270,7 @@ services:
     ports:
       - "8083:8083"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
     depends_on:
       - mongodb
     networks:
@@ -285,7 +285,7 @@ services:
     ports:
       - "8089:8089"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
     depends_on:
       - mongodb
     networks:
@@ -300,7 +300,7 @@ services:
     ports:
       - "8090:8090"
     environment:
-      DATABASE_URL: mongodb://admin:password123@mongodb:27017/invoice_financing
+      DATABASE_URL: mongodb://invoice:yts1247@21BK@mongodb:27017/invoice_financing
     depends_on:
       - mongodb
     networks:
