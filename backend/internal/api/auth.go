@@ -9,7 +9,6 @@ import (
 	"invoice-financing-platform/pkg/auth"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -73,8 +72,8 @@ func (s *Server) register(c *gin.Context) {
 		return
 	}
 
-	// Generate tokens
-	token, refreshToken, err := s.generateTokens(user.ID, user.Email, string(user.Role))
+	// Generate tokens (use UUID field)
+	token, refreshToken, err := s.generateTokens(user.UUID, user.Email, string(user.Role))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 		return
@@ -111,8 +110,8 @@ func (s *Server) login(c *gin.Context) {
 		return
 	}
 
-	// Generate tokens
-	token, refreshToken, err := s.generateTokens(user.ID, user.Email, string(user.Role))
+	// Generate tokens (use UUID field)
+	token, refreshToken, err := s.generateTokens(user.UUID, user.Email, string(user.Role))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 		return

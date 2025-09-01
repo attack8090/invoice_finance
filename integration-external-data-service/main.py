@@ -17,11 +17,7 @@ import logging
 from datetime import datetime, timedelta
 import os
 import redis
-from sqlalchemy import create_engine, Column, String, DateTime, Float, Integer, Text, Boolean
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.dialects.postgresql import UUID, JSON
-import uuid
+from pymongo import MongoClient
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import csv
@@ -31,11 +27,11 @@ import io
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/integration_external_data")
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+# MongoDB setup
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/")
+mongo_client = MongoClient(MONGO_URL)
+mongo_db = mongo_client[os.getenv("MONGO_DB", "integration_external_data")]
 
 # Redis setup
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, decode_responses=True)
@@ -89,32 +85,7 @@ class DataSync(Base):
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class CreditScoreData(Base):
-    __tablename__ = "credit_score_data"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    customer_id = Column(UUID(as_uuid=True), nullable=False)
-    provider = Column(String(100), nullable=False)  # experian, equifax, transunion, dun_bradstreet
-    score = Column(Integer, nullable=True)
-    rating = Column(String(10), nullable=True)
-    risk_factors = Column(JSON, nullable=True)
-    report_data = Column(JSON, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class KYCAMLData(Base):
-    __tablename__ = "kyc_aml_data"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    customer_id = Column(UUID(as_uuid=True), nullable=False)
-    check_type = Column(String(50), nullable=False)  # kyc, aml, sanctions, pep
-    provider = Column(String(100), nullable=False)
-    status = Column(String(50), nullable=False)  # passed, failed, pending, manual_review
-    confidence_score = Column(Float, nullable=True)
-    check_data = Column(JSON, nullable=False)
-    flagged_items = Column(JSON, nullable=True)
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+## Removed SQLAlchemy models for CreditScoreData and KYCAMLData. These will be stored in MongoDB collections.
 
 class EDIDocument(Base):
     __tablename__ = "edi_documents"
@@ -383,76 +354,68 @@ async def get_credit_score(request: CreditScoreRequest, background_tasks: Backgr
     return response
 
 @app.get("/api/v1/credit-scoring/{customer_id}/history")
-async def get_credit_history(customer_id: str, db: Session = Depends(get_db)):
+async def get_credit_history(customer_id: str):
     """Get credit score history for customer"""
-    records = db.query(CreditScoreData).filter(
-        CreditScoreData.customer_id == customer_id
-    ).order_by(CreditScoreData.created_at.desc()).all()
-    
+    records = list(mongo_db.credit_score_data.find({"customer_id": customer_id}).sort("created_at", -1))
     return {
         "customer_id": customer_id,
         "records": [
             {
-                "id": str(record.id),
-                "provider": record.provider,
-                "score": record.score,
-                "rating": record.rating,
-                "created_at": record.created_at,
-                "expires_at": record.expires_at
+                "id": str(record.get("_id")),
+                "provider": record.get("provider"),
+                "score": record.get("score"),
+                "rating": record.get("rating"),
+                "created_at": record.get("created_at"),
+                "expires_at": record.get("expires_at")
             } for record in records
         ]
     }
 
 # KYC/AML Endpoints
 @app.post("/api/v1/kyc-aml/check", response_model=KYCAMLResponse)
-async def perform_kyc_aml_check(request: KYCAMLRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def perform_kyc_aml_check(request: KYCAMLRequest, background_tasks: BackgroundTasks):
     """Perform KYC/AML check"""
-    # Create KYC/AML record
-    kyc_record = KYCAMLData(
-        customer_id=request.customer_id,
-        check_type=request.check_type,
-        provider=request.provider,
-        status="pending",
-        check_data=request.customer_data,
-        expires_at=datetime.utcnow() + timedelta(days=90)
-    )
-    db.add(kyc_record)
-    db.commit()
-    db.refresh(kyc_record)
-    
-    # Start background check
-    background_tasks.add_task(perform_kyc_aml_verification, str(kyc_record.id), request)
-    
+    kyc_record = {
+        "customer_id": request.customer_id,
+        "check_type": request.check_type,
+        "provider": request.provider,
+        "status": "pending",
+        "check_data": request.customer_data,
+        "expires_at": datetime.utcnow() + timedelta(days=90),
+        "created_at": datetime.utcnow(),
+        "confidence_score": None,
+        "flagged_items": None
+    }
+    result = mongo_db.kyc_aml_data.insert_one(kyc_record)
+    kyc_record["_id"] = result.inserted_id
+    background_tasks.add_task(perform_kyc_aml_verification, str(result.inserted_id), request)
     return KYCAMLResponse(
-        id=str(kyc_record.id),
+        id=str(result.inserted_id),
         customer_id=request.customer_id,
         check_type=request.check_type,
         provider=request.provider,
-        status=kyc_record.status,
-        confidence_score=kyc_record.confidence_score,
-        flagged_items=kyc_record.flagged_items,
-        expires_at=kyc_record.expires_at
+        status=kyc_record["status"],
+        confidence_score=kyc_record["confidence_score"],
+        flagged_items=kyc_record["flagged_items"],
+        expires_at=kyc_record["expires_at"]
     )
 
 @app.get("/api/v1/kyc-aml/{customer_id}/status")
-async def get_kyc_aml_status(customer_id: str, db: Session = Depends(get_db)):
+async def get_kyc_aml_status(customer_id: str):
     """Get KYC/AML status for customer"""
-    records = db.query(KYCAMLData).filter(
-        KYCAMLData.customer_id == customer_id
-    ).order_by(KYCAMLData.created_at.desc()).all()
-    
+    records = list(mongo_db.kyc_aml_data.find({"customer_id": customer_id}).sort("created_at", -1))
     return {
         "customer_id": customer_id,
         "overall_status": "compliant",
         "checks": [
             {
-                "id": str(record.id),
-                "check_type": record.check_type,
-                "provider": record.provider,
-                "status": record.status,
-                "confidence_score": record.confidence_score,
-                "created_at": record.created_at,
-                "expires_at": record.expires_at
+                "id": str(record.get("_id")),
+                "check_type": record.get("check_type"),
+                "provider": record.get("provider"),
+                "status": record.get("status"),
+                "confidence_score": record.get("confidence_score"),
+                "created_at": record.get("created_at"),
+                "expires_at": record.get("expires_at")
             } for record in records
         ]
     }

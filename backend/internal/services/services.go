@@ -10,8 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // InvoiceService handles invoice-related operations
@@ -140,6 +138,21 @@ func (s *FinancingService) GetRequestByID(id uuid.UUID) (*models.FinancingReques
 		return nil, err
 	}
 	return &request, nil
+}
+
+func (s *FinancingService) GetRequestsByInvoiceID(invoiceID uuid.UUID) ([]models.FinancingRequest, error) {
+	var requests []models.FinancingRequest
+	collection := s.db.Database.Collection("financing_requests")
+
+	filter := bson.M{"invoice_id": invoiceID}
+	cursor, err := collection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	err = cursor.All(context.Background(), &requests)
+	return requests, err
 }
 
 func (s *FinancingService) CreateInvestment(investment *models.Investment) error {

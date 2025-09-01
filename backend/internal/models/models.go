@@ -51,8 +51,8 @@ type Invoice struct {
 	DocumentURL         string             `json:"document_url" bson:"document_url"`
 	VerificationStatus  VerificationStatus `json:"verification_status" bson:"verification_status"`
 	AIRiskScore         float64            `json:"ai_risk_score" bson:"ai_risk_score"`
-	BlockchainTxHash    string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
-	TokenID             string             `json:"token_id" bson:"token_id"`
+	FabricTxID          string             `json:"fabric_tx_id" bson:"fabric_tx_id"`
+	AssetID             string             `json:"asset_id" bson:"asset_id"`
 	CreatedAt           time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt           time.Time          `json:"updated_at" bson:"updated_at"`
 	DeletedAt           *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
@@ -94,8 +94,8 @@ type FinancingRequest struct {
 	ApprovedAt        *time.Time         `json:"approved_at" bson:"approved_at,omitempty"`
 	FundedAt          *time.Time         `json:"funded_at" bson:"funded_at,omitempty"`
 	CompletedAt       *time.Time         `json:"completed_at" bson:"completed_at,omitempty"`
-	BlockchainTxHash  string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
-	SmartContractAddr string             `json:"smart_contract_addr" bson:"smart_contract_addr"`
+	FabricTxID        string             `json:"fabric_tx_id" bson:"fabric_tx_id"`
+	FabricAssetID     string             `json:"fabric_asset_id" bson:"fabric_asset_id"`
 	CreatedAt         time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at" bson:"updated_at"`
 	DeletedAt         *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
@@ -132,7 +132,7 @@ type Investment struct {
 	InvestmentDate     time.Time          `json:"investment_date" bson:"investment_date"`
 	MaturityDate       time.Time          `json:"maturity_date" bson:"maturity_date"`
 	ReturnDate         *time.Time         `json:"return_date" bson:"return_date,omitempty"`
-	BlockchainTxHash   string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
+	FabricTxID         string             `json:"fabric_tx_id" bson:"fabric_tx_id"`
 	CreatedAt          time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at" bson:"updated_at"`
 	DeletedAt          *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
@@ -156,9 +156,9 @@ type Transaction struct {
 	Status            TransactionStatus  `json:"status" bson:"status"`
 	Description       string             `json:"description" bson:"description"`
 	Reference         string             `json:"reference" bson:"reference"`
-	BlockchainTxHash  string             `json:"blockchain_tx_hash" bson:"blockchain_tx_hash"`
-	GasUsed           int64              `json:"gas_used" bson:"gas_used"`
-	GasPrice          int64              `json:"gas_price" bson:"gas_price"`
+	FabricTxID        string             `json:"fabric_tx_id" bson:"fabric_tx_id"`
+	FabricBlockNum    int64              `json:"fabric_block_num" bson:"fabric_block_num"`
+	FabricChannelName string             `json:"fabric_channel_name" bson:"fabric_channel_name"`
 	CreatedAt         time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at" bson:"updated_at"`
 	DeletedAt         *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`

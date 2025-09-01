@@ -223,12 +223,15 @@ func (s *Server) deleteInvoice(c *gin.Context) {
 	}
 
 	// Check if invoice has active financing requests
-	if len(existingInvoice.FinancingRequests) > 0 {
-		for _, req := range existingInvoice.FinancingRequests {
-			if req.Status == models.FinancingStatusPending || req.Status == models.FinancingStatusApproved {
-				c.JSON(http.StatusConflict, gin.H{"error": "Cannot delete invoice with active financing requests"})
-				return
-			}
+	requests, err := s.financingService.GetRequestsByInvoiceID(invoiceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check financing requests"})
+		return
+	}
+	for _, req := range requests {
+		if req.Status == models.FinancingStatusPending || req.Status == models.FinancingStatusApproved || req.Status == models.FinancingStatusFunded {
+			c.JSON(http.StatusConflict, gin.H{"error": "Cannot delete invoice with active financing requests"})
+			return
 		}
 	}
 

@@ -36,19 +36,19 @@ func main() {
 	userService := services.NewUserService(db)
 	invoiceService := services.NewInvoiceService(db)
 	financingService := services.NewFinancingService(db)
-	blockchainService := services.NewBlockchainService(cfg.EthereumRPC, cfg.ContractAddress)
+	fabricService := services.NewFabricService(cfg)
 	aiService := services.NewAIService(cfg.AIModelEndpoint)
 	fileService := services.NewFileService()
 
 	// Initialize API server
 	server := api.NewServer(api.ServerConfig{
-		UserService:       userService,
-		InvoiceService:    invoiceService,
-		FinancingService:  financingService,
-		BlockchainService: blockchainService,
-		AIService:         aiService,
-		FileService:       fileService,
-		JWTSecret:         cfg.JWTSecret,
+		UserService:      userService,
+		InvoiceService:   invoiceService,
+		FinancingService: financingService,
+		FabricService:    fabricService,
+		AIService:        aiService,
+		FileService:      fileService,
+		JWTSecret:        cfg.JWTSecret,
 	})
 
 	// Start server

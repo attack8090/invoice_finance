@@ -4,7 +4,6 @@ import (
 	"invoice-financing-platform/internal/services"
 	"invoice-financing-platform/middleware"
 	"invoice-financing-platform/models"
-	"os"
 
 	"github.com/gin-gonic/gin"
 )
