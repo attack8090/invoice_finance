@@ -6,7 +6,7 @@ A comprehensive SME fintech marketplace that leverages blockchain technology, AI
 
 ### Backend (Go)
 - REST API built with Gin framework
-- PostgreSQL database
+- MongoDB NoSQL database
 - JWT authentication
 - AI-powered credit scoring and fraud detection
 - Blockchain integration for transparency
@@ -66,7 +66,7 @@ A comprehensive SME fintech marketplace that leverages blockchain technology, AI
 - **Go Backend**: Go 1.23.0 (toolchain 1.24.5) with Gin framework
 - **React Frontend**: React 19.1.1 with TypeScript 4.9.5
 - **AI Service**: Python FastAPI with scikit-learn, LightGBM, XGBoost
-- **Database**: PostgreSQL 15 with multiple schemas
+- **Database**: MongoDB 7 with multiple databases
 - **Cache**: Redis 7-alpine
 - **Blockchain**: Hardhat 3.0.1 with OpenZeppelin 5.4.0
 - **Container Orchestration**: Docker Compose 3.8
@@ -77,7 +77,7 @@ A comprehensive SME fintech marketplace that leverages blockchain technology, AI
 - **Frontend**: React 19.1.1, TypeScript 4.9.5, Material-UI 7.3.1, Web3 4.16.0
 - **AI/ML**: FastAPI 0.104.1, scikit-learn 1.3.2, LightGBM 4.1.0, XGBoost 2.0.1, Tesseract OCR
 - **Blockchain**: Hardhat 3.0.1, Solidity, OpenZeppelin Contracts 5.4.0
-- **Database**: PostgreSQL 15, MongoDB (via Go driver), Redis 7
+- **Database**: MongoDB 7 (NoSQL document database), Redis 7 (caching)
 - **DevOps**: Docker, Docker Compose
 - **Development**: Windows PowerShell environment
 
@@ -86,23 +86,26 @@ A comprehensive SME fintech marketplace that leverages blockchain technology, AI
 ### Prerequisites
 - Go 1.19+
 - Node.js 18+
-- PostgreSQL 14+
+- MongoDB 7+
 - Docker & Docker Compose
+- Python 3.11+ (for AI services)
 
 ### Development Setup
 
 **Using Docker Compose (Recommended):**
 1. Clone the repository
 2. Run `docker-compose up -d` to start all services
-3. Access the application:
+3. MongoDB will be automatically initialized with databases and collections
+4. Access the application:
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8080
    - AI Service: http://localhost:5000
    - Blockchain Node: http://localhost:8545
+   - MongoDB: mongodb://localhost:27017
 
 **Manual Development Setup:**
-1. Start PostgreSQL and Redis services
-2. Navigate to `backend/` and run `go run main.go` (Port 8080)
+1. Start MongoDB and Redis services locally
+2. Navigate to `backend/` and run `go run cmd/server/main.go` (Port 8080)
 3. Navigate to `frontend/` and run `npm start` (Port 3000)
 4. Navigate to `ai-service/` and run `uvicorn main:app --reload --port 5000`
 5. Deploy smart contracts: `cd blockchain && npx hardhat deploy`
@@ -128,7 +131,7 @@ A comprehensive SME fintech marketplace that leverages blockchain technology, AI
 - **OCR Service** (Go:8090) - Invoice text extraction and processing
 
 **Infrastructure:**
-- **PostgreSQL** (Port 5432) - Primary database with multiple schemas
+- **MongoDB** (Port 27017) - Primary NoSQL database with multiple databases
 - **Redis** (Port 6379) - Caching and session management
 
 ## Project Structure
